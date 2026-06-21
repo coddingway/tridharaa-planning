@@ -12,7 +12,7 @@ interface Idea {
 }
 interface Task {
   id: string; idea_id: string | null; title: string;
-  assigned_to: string; progress: Progress; created_at: string;
+  assigned_to: string; progress: Progress; category: string | null; created_at: string;
 }
 
 type ModalState =
@@ -35,6 +35,10 @@ export default function Responsibilities() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filterName, setFilterName] = useState('All');
   const [sortBy,     setSortBy]     = useState<'date-desc'|'date-asc'|'name-asc'|'name-desc'>('date-desc');
+  const [addCat,     setAddCat]     = useState('');
+  const [addTitle,   setAddTitle]   = useState('');
+  const [addPerson,  setAddPerson]  = useState('');
+  const [adding,     setAdding]     = useState(false);
   const [toast, setToast] = useState('');
   const [modal, setModal] = useState<ModalState>(null);
   const promptRef = useRef<HTMLInputElement>(null);
@@ -74,6 +78,19 @@ export default function Responsibilities() {
       });
   }
 
+  async function addDirectTask() {
+    if (!addCat || !addTitle.trim() || !addPerson.trim()) { showToast('Fill all fields'); return; }
+    setAdding(true);
+    await fetch('/api/tasks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: addTitle.trim(), assigned_to: addPerson.trim(), category: addCat }),
+    });
+    setAddCat(''); setAddTitle(''); setAddPerson('');
+    setAdding(false);
+    showToast('Responsibility added!');
+    load();
+  }
+
   function makeTask(idea: Idea) {
     setModal({ type: 'prompt', msg: 'Assign task to:', okLabel: 'Assign', onOk: async (who) => {
       if (!who.trim()) return;
@@ -104,7 +121,8 @@ export default function Responsibilities() {
   }
 
   const s = styles;
-  const activeCats = CATS.filter(c => filteredIdeasForCat(c).length > 0);
+  const directTasksForCat = (cat: string) => tasks.filter(t => !t.idea_id && t.category === cat);
+  const activeCats = CATS.filter(c => filteredIdeasForCat(c).length > 0 || directTasksForCat(c).length > 0);
 
   return (
     <div>
@@ -134,10 +152,35 @@ export default function Responsibilities() {
           </select>
         </div>
 
-        {activeCats.length === 0 && (
+        {/* Direct add responsibility form */}
+        <div style={s.addCard}>
+          <div style={s.boxLabel}>＋ Add Responsibility Directly</div>
+          <select value={addCat} onChange={e => setAddCat(e.target.value)} style={s.select}>
+            <option value="">Select category…</option>
+            {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input
+            value={addTitle} onChange={e => setAddTitle(e.target.value)}
+            placeholder="Responsibility / task description…"
+            style={s.input}
+          />
+          <input
+            value={addPerson} onChange={e => setAddPerson(e.target.value)}
+            placeholder="Assign to (member name)…"
+            style={{ ...s.input, marginBottom: '0.75rem' }}
+            onKeyDown={e => e.key === 'Enter' && addDirectTask()}
+          />
+          <div style={{ textAlign: 'right' }}>
+            <button onClick={addDirectTask} disabled={adding} style={s.btnAdd}>
+              {adding ? 'Adding…' : 'Add Responsibility'}
+            </button>
+          </div>
+        </div>
+
+        {activeCats.length === 0 && tasks.filter(t => !t.idea_id).length === 0 && (
           <div style={s.empty}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>✅</div>
-            No approved ideas yet. Approve ideas in the Planning Hub to see them here.
+            No responsibilities yet. Add one above or approve ideas in Planning Hub.
           </div>
         )}
 
@@ -203,6 +246,27 @@ export default function Responsibilities() {
                   </div>
                 );
               })}
+
+            {/* Direct tasks for this category */}
+            {directTasksForCat(cat).map(task => (
+              <div key={task.id} style={s.directTaskCard}>
+                <div style={{ ...s.taskDot, background: task.progress === 'done' ? '#2A7A2A' : task.progress === 'in-progress' ? '#D4840A' : '#ccc' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={s.directTaskTitle}>{task.title}</div>
+                  <div style={s.taskAssigned}>👤 <strong>{task.assigned_to || 'Unassigned'}</strong></div>
+                </div>
+                {isAdmin ? (
+                  <button style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }} onClick={() => cycleProgress(task)}>
+                    {P_LABEL[task.progress]}
+                  </button>
+                ) : (
+                  <span style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }}>
+                    {P_LABEL[task.progress]}
+                  </span>
+                )}
+                {isAdmin && <button style={s.btnDelete} onClick={() => deleteTask(task.id)}>🗑</button>}
+              </div>
+            ))}
             </div>
           );
         })}
@@ -242,6 +306,13 @@ const styles = {
   wrap:         { maxWidth: '680px', margin: '0 auto', padding: '1.25rem 1rem 5rem' },
   filterRow:    { display: 'flex', gap: '0.6rem', marginBottom: '1.25rem' },
   filterSelect: { flex: 1, padding: '0.45rem 0.75rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, outline: 'none', background: '#fff', cursor: 'pointer' },
+  addCard:      { background: '#fff', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.09)', padding: '1.1rem 1.2rem', marginBottom: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' },
+  boxLabel:     { fontSize: '0.72rem', textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: '#D4840A', fontWeight: 800, marginBottom: '0.7rem' },
+  select:       { width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '8px', fontSize: '0.875rem', outline: 'none', marginBottom: '0.6rem', appearance: 'none' as const },
+  input:        { width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '8px', fontSize: '0.875rem', outline: 'none', marginBottom: '0.6rem', boxSizing: 'border-box' as const },
+  btnAdd:       { padding: '0.6rem 1.4rem', background: '#5C1148', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' },
+  directTaskCard: { background: '#fff', borderRadius: '10px', border: '1px dashed rgba(0,0,0,0.12)', padding: '0.75rem 1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' as const },
+  directTaskTitle:{ fontSize: '0.875rem', fontWeight: 600, color: '#2C2C2C', marginBottom: '0.15rem' },
   catSection:   { marginBottom: '1.75rem' },
   catHeader:    { fontSize: '0.8rem', fontWeight: 800, color: '#5C1148', textTransform: 'uppercase' as const, letterSpacing: '0.08em', padding: '0.4rem 0.75rem', background: '#F0F5D8', borderRadius: '8px', marginBottom: '0.65rem', borderLeft: '4px solid #5C1148' },
   ideaCard:     { background: '#fff', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.09)', padding: '0.95rem 1.1rem', marginBottom: '0.65rem' },

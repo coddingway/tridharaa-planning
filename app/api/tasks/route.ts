@@ -9,12 +9,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { idea_id, title, assigned_to } = await req.json();
+  const { idea_id, title, assigned_to, category } = await req.json();
   if (!title) return Response.json({ error: 'Missing title' }, { status: 400 });
   const sql = getDb();
   const [row] = await sql`
-    INSERT INTO tasks (idea_id, title, assigned_to)
-    VALUES (${idea_id ?? null}, ${title}, ${assigned_to ?? null})
+    INSERT INTO tasks (idea_id, title, assigned_to, category)
+    VALUES (${idea_id ?? null}, ${title}, ${assigned_to ?? null}, ${category ?? null})
     RETURNING *
   `;
   return Response.json(row, { status: 201 });
