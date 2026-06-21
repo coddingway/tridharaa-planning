@@ -32,8 +32,8 @@ export default function Home() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', background: 'linear-gradient(150deg, #5C1148 0%, #3D0B30 100%)' }}>
       <div style={{ background: '#fff', borderRadius: '20px', padding: '2.5rem 2rem', width: '100%', maxWidth: '380px', textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.35)' }}>
-        <div style={{ fontSize: '2.4rem', marginBottom: '0.5rem' }}>🪷</div>
-        <h1 style={{ fontSize: '1.4rem', color: '#5C1148', fontWeight: 800, marginBottom: '0.2rem' }}>Tridharaa Planning Hub</h1>
+        <img src="/logo-color.png" alt="Tridharaa" style={{ width: '140px', marginBottom: '1rem' }} />
+        <h1 style={{ fontSize: '1.2rem', color: '#5C1148', fontWeight: 800, marginBottom: '0.2rem' }}>Planning Hub</h1>
         <p style={{ fontSize: '0.85rem', color: '#777', marginBottom: '1.75rem' }}>Durga Puja 2026 · Oct 16–21</p>
         <input
           type="text"

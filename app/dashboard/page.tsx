@@ -141,7 +141,7 @@ export default function Dashboard() {
     <div>
       {/* Top bar */}
       <div style={s.topbar}>
-        <span style={s.brand}>🪷 <span style={{ color: '#F0A832' }}>Tridharaa</span> Planning Hub</span>
+        <img src="/logo-white.png" alt="Tridharaa" style={{ height: '36px' }} />
         <button style={s.userPill} onClick={() => setModal({ type: 'confirm', msg: 'Log out?', okLabel: 'Log out', onOk: () => { localStorage.removeItem('tp_user'); router.push('/'); } })}>
           👤 {me}
         </button>
