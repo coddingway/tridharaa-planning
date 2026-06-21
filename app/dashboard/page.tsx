@@ -36,9 +36,11 @@ export default function Dashboard() {
   const [filter,  setFilter]  = useState('All');
   const [cat,     setCat]     = useState('');
   const [text,    setText]    = useState('');
-  const [posting, setPosting] = useState(false);
-  const [toast,   setToast]   = useState('');
-  const [modal,   setModal]   = useState<ModalState>(null);
+  const [posting,    setPosting]    = useState(false);
+  const [toast,      setToast]      = useState('');
+  const [modal,      setModal]      = useState<ModalState>(null);
+  const [filterName, setFilterName] = useState('All');
+  const [sortBy,     setSortBy]     = useState<'date-desc'|'date-asc'|'name-asc'|'name-desc'>('date-desc');
   const promptRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -118,7 +120,16 @@ export default function Dashboard() {
   }
 
   const isAdmin = me === 'Amrit';
-  const shown = filter === 'All' ? ideas : ideas.filter(i => i.category === filter);
+  const names = ['All', ...Array.from(new Set(ideas.map(i => i.member_name))).sort()];
+  const shown = ideas
+    .filter(i => filter === 'All' || i.category === filter)
+    .filter(i => filterName === 'All' || i.member_name === filterName)
+    .sort((a, b) => {
+      if (sortBy === 'date-desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === 'date-asc')  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === 'name-asc')  return a.member_name.localeCompare(b.member_name);
+      return b.member_name.localeCompare(a.member_name);
+    });
 
   function dt(iso: string) {
     return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -131,7 +142,7 @@ export default function Dashboard() {
       {/* Top bar */}
       <div style={s.topbar}>
         <span style={s.brand}>🪷 <span style={{ color: '#F0A832' }}>Tridharaa</span> Planning Hub</span>
-        <button style={s.userPill} onClick={() => { if (confirm('Change your name?')) { localStorage.removeItem('tp_user'); router.push('/'); } }}>
+        <button style={s.userPill} onClick={() => setModal({ type: 'confirm', msg: 'Change your name?', onOk: () => { localStorage.removeItem('tp_user'); router.push('/'); } })}>
           👤 {me}
         </button>
       </div>
@@ -158,7 +169,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Filter tabs */}
+        {/* Category tabs */}
         <div style={s.tabs}>
           {['All', ...CATS].map(c => (
             <button
@@ -169,6 +180,19 @@ export default function Dashboard() {
               {c === 'All' ? 'All' : c.split(' ').slice(1).join(' ')}
             </button>
           ))}
+        </div>
+
+        {/* Name filter + sort row */}
+        <div style={s.filterRow}>
+          <select value={filterName} onChange={e => setFilterName(e.target.value)} style={s.filterSelect}>
+            {names.map(n => <option key={n} value={n}>{n === 'All' ? '👤 All Members' : n}</option>)}
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)} style={s.filterSelect}>
+            <option value="date-desc">↓ Newest first</option>
+            <option value="date-asc">↑ Oldest first</option>
+            <option value="name-asc">A→Z by name</option>
+            <option value="name-desc">Z→A by name</option>
+          </select>
         </div>
 
         {/* Ideas */}
@@ -275,7 +299,9 @@ const styles = {
   select:      { width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '8px', fontSize: '0.875rem', outline: 'none', marginBottom: '0.6rem', appearance: 'none' as const },
   textarea:    { width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '8px', fontSize: '0.875rem', outline: 'none', resize: 'none' as const, marginBottom: '0.75rem' },
   btnPost:     { padding: '0.6rem 1.4rem', background: '#5C1148', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' },
-  tabs:        { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' as const, marginBottom: '1rem' },
+  tabs:        { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' as const, marginBottom: '0.65rem' },
+  filterRow:   { display: 'flex', gap: '0.6rem', marginBottom: '1rem' },
+  filterSelect:{ flex: 1, padding: '0.45rem 0.75rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, outline: 'none', background: '#fff', cursor: 'pointer' },
   tab:         { padding: '0.35rem 0.85rem', border: '1.5px solid rgba(0,0,0,0.09)', borderRadius: '100px', fontSize: '0.78rem', fontWeight: 700, background: '#fff', color: '#777', cursor: 'pointer' },
   tabActive:   { background: '#5C1148', borderColor: '#5C1148', color: '#fff' },
   secLabel:    { fontSize: '0.7rem', textTransform: 'uppercase' as const, letterSpacing: '0.12em', color: '#777', fontWeight: 800, marginBottom: '0.65rem' },
