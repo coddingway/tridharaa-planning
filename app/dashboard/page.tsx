@@ -34,7 +34,6 @@ export default function Dashboard() {
   const router = useRouter();
   const [me,      setMe]      = useState('');
   const [ideas,   setIdeas]   = useState<Idea[]>([]);
-  const [tasks,   setTasks]   = useState<Task[]>([]);
   const [filter,  setFilter]  = useState('All');
   const [cat,       setCat]       = useState('');
   const [text,      setText]      = useState('');
@@ -52,12 +51,8 @@ export default function Dashboard() {
   const promptRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
-    const [ir, tr] = await Promise.all([
-      fetch('/api/ideas').then(r => r.json()),
-      fetch('/api/tasks').then(r => r.json()),
-    ]);
+    const ir = await fetch('/api/ideas').then(r => r.json());
     if (Array.isArray(ir)) setIdeas(ir);
-    if (Array.isArray(tr)) setTasks(tr);
   }, []);
 
   useEffect(() => {
@@ -112,35 +107,10 @@ export default function Dashboard() {
     }});
   }
 
-  async function makeTask(idea: Idea) {
-    setModal({ type: 'prompt', msg: 'Assign this task to:', onOk: async (who) => {
-      if (!who.trim()) return;
-    await Promise.all([
-      fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea_id: idea.id, title: idea.idea_text, assigned_to: who.trim() }) }),
-      fetch(`/api/ideas/${idea.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'task' }) }),
-      ]);
-      showToast('Task created!');
-      load();
-    }});
-  }
-
-  async function cycleProgress(task: Task) {
-    await fetch(`/api/tasks/${task.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ progress: NEXT_P[task.progress] }) });
-    load();
-  }
-
   function deleteIdea(id: string) {
     setModal({ type: 'confirm', msg: 'Delete this idea?', onOk: async () => {
       await fetch(`/api/ideas/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
       showToast('Idea deleted');
-      load();
-    }});
-  }
-
-  function deleteTask(id: string) {
-    setModal({ type: 'confirm', msg: 'Delete this task?', onOk: async () => {
-      await fetch(`/api/tasks/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
-      showToast('Task deleted');
       load();
     }});
   }
@@ -173,9 +143,10 @@ export default function Dashboard() {
     <div>
       {/* Top bar */}
       <div style={s.topbar}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <img src="/logo-white.png" alt="Tridharaa" style={{ height: '34px' }} />
-          <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 700, opacity: 0.9 }}>Planning Hub</span>
+        <img src="/logo-white.png" alt="Tridharaa" style={{ height: '30px' }} />
+        <div style={s.navTabs}>
+          <span style={{ ...s.navTab, ...s.navTabActive }}>💡 Ideas</span>
+          <span style={s.navTab} onClick={() => router.push('/responsibilities')}>✅ Responsibilities</span>
         </div>
         <button style={s.userPill} onClick={() => setModal({ type: 'confirm', msg: 'Log out?', okLabel: 'Log out', onOk: () => { localStorage.removeItem('tp_user'); router.push('/'); } })}>
           👤 {me}
@@ -304,45 +275,13 @@ export default function Dashboard() {
                 <span style={{ ...s.statusPill, ...(idea.status === 'approved' ? s.pillApproved : idea.status === 'task' ? s.pillTask : s.pillOpen) }}>
                   {S_LABEL[idea.status]}
                 </span>
-                {isAdmin && idea.status === 'open'     && <button style={{ ...s.btnSm, ...s.btnApprove }} onClick={() => approve(idea.id)}>✓ Approve</button>}
-                {isAdmin && idea.status === 'approved' && <button style={{ ...s.btnSm, ...s.btnTask }}    onClick={() => makeTask(idea)}>→ Make Task</button>}
-                {(isAdmin || me === idea.member_name)  && <button style={{ ...s.btnSm, ...s.btnDelete }}  onClick={() => deleteIdea(idea.id)}>🗑</button>}
+                {isAdmin && idea.status === 'open' && <button style={{ ...s.btnSm, ...s.btnApprove }} onClick={() => approve(idea.id)}>✓ Approve</button>}
+                {(isAdmin || me === idea.member_name) && <button style={{ ...s.btnSm, ...s.btnDelete }} onClick={() => deleteIdea(idea.id)}>🗑</button>}
               </div>
             </div>
           ))}
         </div>
 
-        <hr style={s.divider} />
-
-        {/* Tasks */}
-        <div style={s.secLabel}>Weekly Task List · {tasks.length} task{tasks.length !== 1 ? 's' : ''}</div>
-        <div style={s.list}>
-          {tasks.length === 0 ? (
-            <div style={s.empty}><div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>No tasks yet. Approve ideas to create tasks.</div>
-          ) : tasks.map(task => (
-            <div key={task.id} style={s.taskCard}>
-              <div style={{ ...s.taskDot, background: task.progress === 'done' ? '#2A7A2A' : task.progress === 'in-progress' ? '#D4840A' : '#ccc' }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={s.taskTitle}>{task.title}</div>
-                <div style={s.taskMeta}>Assigned to <strong>{task.assigned_to || 'Unassigned'}</strong></div>
-              </div>
-              {isAdmin && (
-                <button
-                  style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }}
-                  onClick={() => cycleProgress(task)}
-                >
-                  {P_LABEL[task.progress]}
-                </button>
-              )}
-              {!isAdmin && (
-                <span style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }}>
-                  {P_LABEL[task.progress]}
-                </span>
-              )}
-              {isAdmin && <button style={{ ...s.btnSm, ...s.btnDelete }} onClick={() => deleteTask(task.id)}>🗑</button>}
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Modal */}
@@ -391,8 +330,10 @@ export default function Dashboard() {
 }
 
 const styles = {
-  topbar:      { background: '#5C1148', color: '#fff', padding: '0.9rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky' as const, top: 0, zIndex: 100, boxShadow: '0 2px 12px rgba(0,0,0,0.25)' },
-  brand:       { fontSize: '0.95rem', fontWeight: 800 },
+  topbar:      { background: '#5C1148', color: '#fff', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky' as const, top: 0, zIndex: 100, boxShadow: '0 2px 12px rgba(0,0,0,0.25)', gap: '0.5rem' },
+  navTabs:     { display: 'flex', gap: '0.3rem', background: 'rgba(0,0,0,0.2)', borderRadius: '100px', padding: '0.2rem' },
+  navTab:      { padding: '0.3rem 0.75rem', borderRadius: '100px', fontSize: '0.75rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', whiteSpace: 'nowrap' as const },
+  navTabActive:{ background: '#fff', color: '#5C1148' },
   userPill:    { background: 'rgba(255,255,255,0.15)', padding: '0.3rem 0.85rem', borderRadius: '100px', fontSize: '0.8rem', fontWeight: 600, color: '#fff', border: 'none', cursor: 'pointer' },
   wrap:        { maxWidth: '680px', margin: '0 auto', padding: '1.25rem 1rem 5rem' },
   card:        { background: '#fff', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.09)', padding: '1.1rem 1.2rem', marginBottom: '1.25rem', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' },
