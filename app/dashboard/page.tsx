@@ -77,12 +77,25 @@ export default function Dashboard() {
   async function post() {
     if (!cat || !text.trim()) { showToast('Pick a category and write your idea.'); return; }
     setPosting(true);
+
+    let image_url: string | null = null;
+    if (imgFile) {
+      setUploading(true);
+      const fd = new FormData();
+      fd.append('file', imgFile);
+      const r = await fetch('/api/upload', { method: 'POST', body: fd });
+      const j = await r.json();
+      image_url = j.url ?? null;
+      setUploading(false);
+    }
+
     await fetch('/api/ideas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ member_name: me, idea_text: text.trim(), category: cat, tag: tag.trim() || null }),
+      body: JSON.stringify({ member_name: me, idea_text: text.trim(), category: cat, tag: tag.trim() || null, image_url }),
     });
-    setCat(''); setText(''); setTag('');
+    setCat(''); setText(''); setTag(''); setImgFile(null); setImgPreview('');
+    if (fileRef.current) fileRef.current.value = '';
     setPosting(false);
     showToast('Idea posted! 🎉');
     load();
@@ -192,9 +205,32 @@ export default function Dashboard() {
             rows={3}
             style={s.textarea}
           />
+          {/* Image upload */}
+          <div style={s.imgUploadRow}>
+            <label style={s.imgUploadBtn}>
+              📎 {imgFile ? imgFile.name : 'Attach image (optional)'}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const f = e.target.files?.[0] ?? null;
+                  setImgFile(f);
+                  setImgPreview(f ? URL.createObjectURL(f) : '');
+                }}
+              />
+            </label>
+            {imgPreview && (
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img src={imgPreview} alt="preview" style={s.imgPreview} />
+                <button style={s.imgRemove} onClick={() => { setImgFile(null); setImgPreview(''); if (fileRef.current) fileRef.current.value = ''; }}>×</button>
+              </div>
+            )}
+          </div>
           <div style={{ textAlign: 'right' }}>
-            <button onClick={post} disabled={posting} style={s.btnPost}>
-              {posting ? 'Posting…' : 'Post Idea'}
+            <button onClick={post} disabled={posting || uploading} style={s.btnPost}>
+              {uploading ? 'Uploading…' : posting ? 'Posting…' : 'Post Idea'}
             </button>
           </div>
         </div>
@@ -255,6 +291,9 @@ export default function Dashboard() {
                 <span style={s.when}>{dt(idea.created_at)}</span>
               </div>
               <div style={s.ideaBody}>{idea.idea_text}</div>
+              {idea.image_url && (
+                <img src={idea.image_url} alt="idea visual" style={s.ideaImg} onClick={() => window.open(idea.image_url!, '_blank')} />
+              )}
               {idea.action_plan && (
                 <div style={s.actionPlan}>
                   <span style={s.actionPlanLabel}>📋 Action Plan</span>
@@ -381,8 +420,13 @@ const styles = {
   tagChipActive:{ background: '#7B3FA0', borderColor: '#7B3FA0', color: '#fff' },
   when:        { fontSize: '0.68rem', color: '#777', marginLeft: 'auto' },
   ideaBody:    { fontSize: '0.9rem', lineHeight: 1.55, color: '#2C2C2C' },
-  actionPlan:  { marginTop: '0.5rem', padding: '0.55rem 0.75rem', background: '#FFF8EC', borderLeft: '3px solid #D4840A', borderRadius: '0 6px 6px 0', fontSize: '0.82rem', lineHeight: 1.5, color: '#5C3A00' },
+  actionPlan:    { marginTop: '0.5rem', padding: '0.55rem 0.75rem', background: '#FFF8EC', borderLeft: '3px solid #D4840A', borderRadius: '0 6px 6px 0', fontSize: '0.82rem', lineHeight: 1.5, color: '#5C3A00' },
   actionPlanLabel: { display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#D4840A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: '0.25rem' },
+  ideaImg:       { width: '100%', maxHeight: '220px', objectFit: 'cover' as const, borderRadius: '8px', marginTop: '0.5rem', cursor: 'pointer' },
+  imgUploadRow:  { marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' as const },
+  imgUploadBtn:  { display: 'inline-block', padding: '0.45rem 0.85rem', border: '1.5px dashed rgba(0,0,0,0.2)', borderRadius: '8px', fontSize: '0.8rem', color: '#777', cursor: 'pointer', fontWeight: 600 },
+  imgPreview:    { height: '56px', width: '56px', objectFit: 'cover' as const, borderRadius: '6px', border: '1.5px solid rgba(0,0,0,0.1)' },
+  imgRemove:     { position: 'absolute' as const, top: '-6px', right: '-6px', width: '18px', height: '18px', borderRadius: '50%', background: '#cc3333', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', lineHeight: '18px', textAlign: 'center' as const, padding: 0 },
   ideaFoot:    { display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.65rem' },
   statusPill:  { fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.55rem', borderRadius: '100px' },
   pillOpen:    { background: '#F0F5D8', color: '#5C1148' },
