@@ -3,8 +3,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 type ModalState =
-  | { type: 'confirm'; msg: string; okLabel?: string; onOk: () => void }
-  | { type: 'prompt';  msg: string; okLabel?: string; onOk: (val: string) => void }
+  | { type: 'confirm';  msg: string; okLabel?: string; onOk: () => void }
+  | { type: 'prompt';   msg: string; okLabel?: string; onOk: (val: string) => void }
+  | { type: 'textarea'; msg: string; okLabel?: string; hint?: string; onOk: (val: string) => void }
   | null;
 
 type Status   = 'open' | 'approved' | 'task';
@@ -12,7 +13,8 @@ type Progress = 'todo' | 'in-progress' | 'done';
 
 interface Idea {
   id: string; member_name: string; idea_text: string;
-  category: string; tag: string | null; status: Status; created_at: string;
+  category: string; tag: string | null; image_url: string | null;
+  action_plan: string | null; status: Status; created_at: string;
 }
 interface Task {
   id: string; idea_id: string | null; title: string;
@@ -38,12 +40,16 @@ export default function Dashboard() {
   const [text,      setText]      = useState('');
   const [tag,       setTag]       = useState('');
   const [filterTag, setFilterTag] = useState('All');
+  const [imgFile,   setImgFile]   = useState<File | null>(null);
+  const [imgPreview,setImgPreview]= useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [posting,    setPosting]    = useState(false);
   const [toast,      setToast]      = useState('');
   const [modal,      setModal]      = useState<ModalState>(null);
   const [filterName, setFilterName] = useState('All');
   const [sortBy,     setSortBy]     = useState<'date-desc'|'date-asc'|'name-asc'|'name-desc'>('date-desc');
-  const promptRef = useRef<HTMLInputElement>(null);
+  const promptRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     const [ir, tr] = await Promise.all([
@@ -82,10 +88,15 @@ export default function Dashboard() {
     load();
   }
 
-  async function approve(id: string) {
-    await fetch(`/api/ideas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) });
-    showToast('Approved ✓');
-    load();
+  function approve(id: string) {
+    setModal({ type: 'textarea', msg: 'Approve idea', hint: 'Write an action plan (optional)…', okLabel: 'Approve', onOk: async (plan) => {
+      await fetch(`/api/ideas/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved', action_plan: plan.trim() || null }),
+      });
+      showToast('Approved ✓');
+      load();
+    }});
   }
 
   async function makeTask(idea: Idea) {
@@ -244,6 +255,12 @@ export default function Dashboard() {
                 <span style={s.when}>{dt(idea.created_at)}</span>
               </div>
               <div style={s.ideaBody}>{idea.idea_text}</div>
+              {idea.action_plan && (
+                <div style={s.actionPlan}>
+                  <span style={s.actionPlanLabel}>📋 Action Plan</span>
+                  {idea.action_plan}
+                </div>
+              )}
               <div style={s.ideaFoot}>
                 <span style={{ ...s.statusPill, ...(idea.status === 'approved' ? s.pillApproved : idea.status === 'task' ? s.pillTask : s.pillOpen) }}>
                   {S_LABEL[idea.status]}
@@ -296,11 +313,20 @@ export default function Dashboard() {
             <div style={s.modalMsg}>{modal.msg}</div>
             {modal.type === 'prompt' && (
               <input
-                ref={promptRef}
+                ref={promptRef as React.RefObject<HTMLInputElement>}
                 autoFocus
                 style={s.modalInput}
                 placeholder="Member name…"
                 onKeyDown={e => { if (e.key === 'Enter') { const v = promptRef.current?.value || ''; setModal(null); modal.onOk(v); } }}
+              />
+            )}
+            {modal.type === 'textarea' && (
+              <textarea
+                ref={promptRef as unknown as React.RefObject<HTMLTextAreaElement>}
+                autoFocus
+                rows={4}
+                style={{ ...s.modalInput, resize: 'none' as const, fontFamily: 'inherit' }}
+                placeholder={modal.hint ?? ''}
               />
             )}
             <div style={s.modalBtns}>
@@ -355,6 +381,8 @@ const styles = {
   tagChipActive:{ background: '#7B3FA0', borderColor: '#7B3FA0', color: '#fff' },
   when:        { fontSize: '0.68rem', color: '#777', marginLeft: 'auto' },
   ideaBody:    { fontSize: '0.9rem', lineHeight: 1.55, color: '#2C2C2C' },
+  actionPlan:  { marginTop: '0.5rem', padding: '0.55rem 0.75rem', background: '#FFF8EC', borderLeft: '3px solid #D4840A', borderRadius: '0 6px 6px 0', fontSize: '0.82rem', lineHeight: 1.5, color: '#5C3A00' },
+  actionPlanLabel: { display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#D4840A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: '0.25rem' },
   ideaFoot:    { display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.65rem' },
   statusPill:  { fontSize: '0.68rem', fontWeight: 700, padding: '0.18rem 0.55rem', borderRadius: '100px' },
   pillOpen:    { background: '#F0F5D8', color: '#5C1148' },

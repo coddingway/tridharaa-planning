@@ -9,13 +9,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const { member_name, idea_text, category, tag } = await req.json();
+  const { member_name, idea_text, category, tag, image_url } = await req.json();
   if (!member_name || !idea_text || !category)
     return Response.json({ error: 'Missing fields' }, { status: 400 });
   const sql = getDb();
   const [row] = await sql`
-    INSERT INTO ideas (member_name, idea_text, category, tag)
-    VALUES (${member_name}, ${idea_text}, ${category}, ${tag ?? null})
+    INSERT INTO ideas (member_name, idea_text, category, tag, image_url)
+    VALUES (${member_name}, ${idea_text}, ${category}, ${tag ?? null}, ${image_url ?? null})
     RETURNING *
   `;
   return Response.json(row, { status: 201 });
