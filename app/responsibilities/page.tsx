@@ -8,7 +8,7 @@ type Progress = 'todo' | 'in-progress' | 'done';
 interface Idea {
   id: string; member_name: string; idea_text: string;
   category: string; tag: string | null; image_url: string | null;
-  action_plan: string | null; status: Status; created_at: string;
+  action_plan: string | null; responsible_person: string | null; status: Status; created_at: string;
 }
 interface Task {
   id: string; idea_id: string | null; title: string;
@@ -162,6 +162,9 @@ export default function Responsibilities() {
                     {idea.image_url && (
                       <img src={idea.image_url} alt="" style={s.ideaImg} onClick={() => window.open(idea.image_url!, '_blank')} />
                     )}
+                    {idea.responsible_person && (
+                      <div style={s.responsibleBadge}>👤 <strong>{idea.responsible_person}</strong></div>
+                    )}
                     {idea.action_plan && (
                       <div style={s.actionPlan}>
                         <span style={s.actionPlanLabel}>📋 Action Plan</span>
@@ -250,6 +253,7 @@ const styles = {
   when:         { fontSize: '0.68rem', color: '#777', marginLeft: 'auto' },
   ideaBody:     { fontSize: '0.9rem', lineHeight: 1.55, color: '#2C2C2C' },
   ideaImg:      { width: '100%', maxHeight: '200px', objectFit: 'cover' as const, borderRadius: '8px', marginTop: '0.5rem', cursor: 'pointer' },
+  responsibleBadge: { marginTop: '0.45rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: '#5C1148', background: '#F0E8F5', padding: '0.2rem 0.6rem', borderRadius: '100px' },
   actionPlan:   { marginTop: '0.5rem', padding: '0.55rem 0.75rem', background: '#FFF8EC', borderLeft: '3px solid #D4840A', borderRadius: '0 6px 6px 0', fontSize: '0.82rem', lineHeight: 1.5, color: '#5C3A00' },
   actionPlanLabel: { display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#D4840A', textTransform: 'uppercase' as const, letterSpacing: '0.1em', marginBottom: '0.25rem' },
   taskRow:      { marginTop: '0.65rem' },

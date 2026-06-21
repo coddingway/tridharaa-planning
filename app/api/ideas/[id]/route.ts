@@ -4,11 +4,14 @@ import { NextRequest } from 'next/server';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { status, action_plan } = await req.json();
+  const { status, action_plan, responsible_person } = await req.json();
   const sql = getDb();
-  const [row] = action_plan !== undefined
-    ? await sql`UPDATE ideas SET status = ${status}, action_plan = ${action_plan} WHERE id = ${id} RETURNING *`
-    : await sql`UPDATE ideas SET status = ${status} WHERE id = ${id} RETURNING *`;
+  const [row] = await sql`
+    UPDATE ideas SET
+      status = ${status},
+      action_plan = COALESCE(${action_plan ?? null}, action_plan),
+      responsible_person = COALESCE(${responsible_person ?? null}, responsible_person)
+    WHERE id = ${id} RETURNING *`;
   return Response.json(row);
 }
 

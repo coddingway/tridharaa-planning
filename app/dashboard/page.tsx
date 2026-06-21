@@ -6,6 +6,7 @@ type ModalState =
   | { type: 'confirm';  msg: string; okLabel?: string; onOk: () => void }
   | { type: 'prompt';   msg: string; okLabel?: string; onOk: (val: string) => void }
   | { type: 'textarea'; msg: string; okLabel?: string; hint?: string; onOk: (val: string) => void }
+  | { type: 'approve';  onOk: (person: string, plan: string) => void }
   | null;
 
 type Status   = 'open' | 'approved' | 'task';
@@ -14,7 +15,7 @@ type Progress = 'todo' | 'in-progress' | 'done';
 interface Idea {
   id: string; member_name: string; idea_text: string;
   category: string; tag: string | null; image_url: string | null;
-  action_plan: string | null; status: Status; created_at: string;
+  action_plan: string | null; responsible_person: string | null; status: Status; created_at: string;
 }
 interface Task {
   id: string; idea_id: string | null; title: string;
@@ -97,10 +98,10 @@ export default function Dashboard() {
   }
 
   function approve(id: string) {
-    setModal({ type: 'textarea', msg: 'Approve idea', hint: 'Write an action plan (optional)…', okLabel: 'Approve', onOk: async (plan) => {
+    setModal({ type: 'approve', onOk: async (person, plan) => {
       await fetch(`/api/ideas/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'approved', action_plan: plan.trim() || null }),
+        body: JSON.stringify({ status: 'approved', responsible_person: person.trim() || null, action_plan: plan.trim() || null }),
       });
       showToast('Approved ✓');
       load();
@@ -288,7 +289,7 @@ export default function Dashboard() {
       {modal && (
         <div style={s.overlay} onClick={() => setModal(null)}>
           <div style={s.modal} onClick={e => e.stopPropagation()}>
-            <div style={s.modalMsg}>{modal.msg}</div>
+            <div style={s.modalMsg}>{'msg' in modal ? modal.msg : 'Approve Idea'}</div>
             {modal.type === 'prompt' && (
               <input
                 ref={promptRef as React.RefObject<HTMLInputElement>}
@@ -301,20 +302,30 @@ export default function Dashboard() {
             {modal.type === 'textarea' && (
               <textarea
                 ref={promptRef as unknown as React.RefObject<HTMLTextAreaElement>}
-                autoFocus
-                rows={4}
+                autoFocus rows={4}
                 style={{ ...s.modalInput, resize: 'none' as const, fontFamily: 'inherit' }}
                 placeholder={modal.hint ?? ''}
               />
             )}
+            {modal.type === 'approve' && (
+              <>
+                <input id="ap-person" autoFocus style={s.modalInput} placeholder="Responsible person name…" />
+                <textarea id="ap-plan" rows={3} style={{ ...s.modalInput, resize: 'none' as const, fontFamily: 'inherit' }} placeholder="Action plan (optional)…" />
+              </>
+            )}
             <div style={s.modalBtns}>
               <button style={s.modalCancel} onClick={() => setModal(null)}>Cancel</button>
               <button style={s.modalOk} onClick={() => {
-                const val = modal.type === 'prompt' ? (promptRef.current?.value || '') : '';
-                setModal(null);
-                modal.onOk(val);
+                if (modal.type === 'approve') {
+                  const person = (document.getElementById('ap-person') as HTMLInputElement)?.value || '';
+                  const plan   = (document.getElementById('ap-plan')   as HTMLTextAreaElement)?.value || '';
+                  setModal(null); modal.onOk(person, plan);
+                } else {
+                  const val = modal.type === 'prompt' ? (promptRef.current?.value || '') : '';
+                  setModal(null); modal.onOk(val as never);
+                }
               }}>
-                {modal.okLabel ?? (modal.type === 'confirm' ? 'Delete' : 'Assign')}
+                {modal.type === 'approve' ? 'Approve' : modal.okLabel ?? (modal.type === 'confirm' ? 'Delete' : 'Assign')}
               </button>
             </div>
           </div>
