@@ -1,6 +1,11 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+
+type ModalState =
+  | { type: 'confirm'; msg: string; onOk: () => void }
+  | { type: 'prompt';  msg: string; onOk: (val: string) => void }
+  | null;
 
 type Status   = 'open' | 'approved' | 'task';
 type Progress = 'todo' | 'in-progress' | 'done';
@@ -33,6 +38,8 @@ export default function Dashboard() {
   const [text,    setText]    = useState('');
   const [posting, setPosting] = useState(false);
   const [toast,   setToast]   = useState('');
+  const [modal,   setModal]   = useState<ModalState>(null);
+  const promptRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const [ir, tr] = await Promise.all([
@@ -78,14 +85,15 @@ export default function Dashboard() {
   }
 
   async function makeTask(idea: Idea) {
-    const who = prompt('Assign this task to (member name):');
-    if (!who?.trim()) return;
+    setModal({ type: 'prompt', msg: 'Assign this task to:', onOk: async (who) => {
+      if (!who.trim()) return;
     await Promise.all([
       fetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea_id: idea.id, title: idea.idea_text, assigned_to: who.trim() }) }),
       fetch(`/api/ideas/${idea.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'task' }) }),
-    ]);
-    showToast('Task created!');
-    load();
+      ]);
+      showToast('Task created!');
+      load();
+    }});
   }
 
   async function cycleProgress(task: Task) {
@@ -93,18 +101,20 @@ export default function Dashboard() {
     load();
   }
 
-  async function deleteIdea(id: string) {
-    if (!confirm('Delete this idea?')) return;
-    await fetch(`/api/ideas/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
-    showToast('Idea deleted');
-    load();
+  function deleteIdea(id: string) {
+    setModal({ type: 'confirm', msg: 'Delete this idea?', onOk: async () => {
+      await fetch(`/api/ideas/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
+      showToast('Idea deleted');
+      load();
+    }});
   }
 
-  async function deleteTask(id: string) {
-    if (!confirm('Delete this task?')) return;
-    await fetch(`/api/tasks/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
-    showToast('Task deleted');
-    load();
+  function deleteTask(id: string) {
+    setModal({ type: 'confirm', msg: 'Delete this task?', onOk: async () => {
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
+      showToast('Task deleted');
+      load();
+    }});
   }
 
   const isAdmin = me === 'Amrit';
@@ -219,6 +229,34 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Modal */}
+      {modal && (
+        <div style={s.overlay} onClick={() => setModal(null)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <div style={s.modalMsg}>{modal.msg}</div>
+            {modal.type === 'prompt' && (
+              <input
+                ref={promptRef}
+                autoFocus
+                style={s.modalInput}
+                placeholder="Member name…"
+                onKeyDown={e => { if (e.key === 'Enter') { const v = promptRef.current?.value || ''; setModal(null); modal.onOk(v); } }}
+              />
+            )}
+            <div style={s.modalBtns}>
+              <button style={s.modalCancel} onClick={() => setModal(null)}>Cancel</button>
+              <button style={s.modalOk} onClick={() => {
+                const val = modal.type === 'prompt' ? (promptRef.current?.value || '') : '';
+                setModal(null);
+                modal.onOk(val);
+              }}>
+                {modal.type === 'confirm' ? 'Delete' : 'Assign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div style={s.toast}>{toast}</div>
@@ -270,4 +308,11 @@ const styles = {
   progDone:    { background: '#EAFAEA', color: '#2A7A2A' },
   empty:       { textAlign: 'center' as const, padding: '2.5rem 1rem', color: '#777', fontSize: '0.875rem' },
   toast:       { position: 'fixed' as const, bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)', background: '#5C1148', color: '#fff', padding: '0.65rem 1.4rem', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 700, zIndex: 999, whiteSpace: 'nowrap' as const, boxShadow: '0 4px 20px rgba(0,0,0,0.25)' },
+  overlay:     { position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' },
+  modal:       { background: '#fff', borderRadius: '16px', padding: '1.5rem 1.4rem', width: '100%', maxWidth: '340px', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' },
+  modalMsg:    { fontSize: '0.95rem', fontWeight: 700, color: '#2C2C2C', marginBottom: '1rem' },
+  modalInput:  { width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: '8px', fontSize: '0.875rem', outline: 'none', marginBottom: '1rem', boxSizing: 'border-box' as const },
+  modalBtns:   { display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' },
+  modalCancel: { padding: '0.5rem 1.1rem', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: '8px', background: '#fff', color: '#555', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' },
+  modalOk:     { padding: '0.5rem 1.1rem', border: 'none', borderRadius: '8px', background: '#5C1148', color: '#fff', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' },
 };
