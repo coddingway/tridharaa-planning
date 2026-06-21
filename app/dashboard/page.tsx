@@ -93,6 +93,21 @@ export default function Dashboard() {
     load();
   }
 
+  async function deleteIdea(id: string) {
+    if (!confirm('Delete this idea?')) return;
+    await fetch(`/api/ideas/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
+    showToast('Idea deleted');
+    load();
+  }
+
+  async function deleteTask(id: string) {
+    if (!confirm('Delete this task?')) return;
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requester: me }) });
+    showToast('Task deleted');
+    load();
+  }
+
+  const isAdmin = me === 'Amrit';
   const shown = filter === 'All' ? ideas : ideas.filter(i => i.category === filter);
 
   function dt(iso: string) {
@@ -163,8 +178,9 @@ export default function Dashboard() {
                 <span style={{ ...s.statusPill, ...(idea.status === 'approved' ? s.pillApproved : idea.status === 'task' ? s.pillTask : s.pillOpen) }}>
                   {S_LABEL[idea.status]}
                 </span>
-                {idea.status === 'open'     && <button style={{ ...s.btnSm, ...s.btnApprove }} onClick={() => approve(idea.id)}>✓ Approve</button>}
-                {idea.status === 'approved' && <button style={{ ...s.btnSm, ...s.btnTask }}    onClick={() => makeTask(idea)}>→ Make Task</button>}
+                {isAdmin && idea.status === 'open'     && <button style={{ ...s.btnSm, ...s.btnApprove }} onClick={() => approve(idea.id)}>✓ Approve</button>}
+                {isAdmin && idea.status === 'approved' && <button style={{ ...s.btnSm, ...s.btnTask }}    onClick={() => makeTask(idea)}>→ Make Task</button>}
+                {(isAdmin || me === idea.member_name)  && <button style={{ ...s.btnSm, ...s.btnDelete }}  onClick={() => deleteIdea(idea.id)}>🗑</button>}
               </div>
             </div>
           ))}
@@ -184,12 +200,20 @@ export default function Dashboard() {
                 <div style={s.taskTitle}>{task.title}</div>
                 <div style={s.taskMeta}>Assigned to <strong>{task.assigned_to || 'Unassigned'}</strong></div>
               </div>
-              <button
-                style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }}
-                onClick={() => cycleProgress(task)}
-              >
-                {P_LABEL[task.progress]}
-              </button>
+              {isAdmin && (
+                <button
+                  style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }}
+                  onClick={() => cycleProgress(task)}
+                >
+                  {P_LABEL[task.progress]}
+                </button>
+              )}
+              {!isAdmin && (
+                <span style={{ ...s.btnProgress, ...(task.progress === 'done' ? s.progDone : task.progress === 'in-progress' ? s.progWip : s.progTodo) }}>
+                  {P_LABEL[task.progress]}
+                </span>
+              )}
+              {isAdmin && <button style={{ ...s.btnSm, ...s.btnDelete }} onClick={() => deleteTask(task.id)}>🗑</button>}
             </div>
           ))}
         </div>
@@ -234,6 +258,7 @@ const styles = {
   btnSm:       { marginLeft: 'auto', padding: '0.28rem 0.75rem', fontSize: '0.73rem', fontWeight: 700, borderRadius: '6px', cursor: 'pointer' },
   btnApprove:  { border: '1.5px solid #D4840A', color: '#D4840A', background: 'none' },
   btnTask:     { border: '1.5px solid #2A7A2A', color: '#2A7A2A', background: 'none' },
+  btnDelete:   { border: '1.5px solid #cc3333', color: '#cc3333', background: 'none', marginLeft: 'auto' },
   divider:     { border: 'none', borderTop: '1px solid rgba(0,0,0,0.09)', margin: '1.75rem 0' },
   taskCard:    { background: '#fff', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.09)', padding: '0.9rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.85rem' },
   taskDot:     { width: '11px', height: '11px', borderRadius: '50%', flexShrink: 0 },
