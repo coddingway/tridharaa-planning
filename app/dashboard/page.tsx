@@ -12,7 +12,7 @@ type Progress = 'todo' | 'in-progress' | 'done';
 
 interface Idea {
   id: string; member_name: string; idea_text: string;
-  category: string; status: Status; created_at: string;
+  category: string; tag: string | null; status: Status; created_at: string;
 }
 interface Task {
   id: string; idea_id: string | null; title: string;
@@ -34,8 +34,10 @@ export default function Dashboard() {
   const [ideas,   setIdeas]   = useState<Idea[]>([]);
   const [tasks,   setTasks]   = useState<Task[]>([]);
   const [filter,  setFilter]  = useState('All');
-  const [cat,     setCat]     = useState('');
-  const [text,    setText]    = useState('');
+  const [cat,       setCat]       = useState('');
+  const [text,      setText]      = useState('');
+  const [tag,       setTag]       = useState('');
+  const [filterTag, setFilterTag] = useState('All');
   const [posting,    setPosting]    = useState(false);
   const [toast,      setToast]      = useState('');
   const [modal,      setModal]      = useState<ModalState>(null);
@@ -72,9 +74,9 @@ export default function Dashboard() {
     await fetch('/api/ideas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ member_name: me, idea_text: text.trim(), category: cat }),
+      body: JSON.stringify({ member_name: me, idea_text: text.trim(), category: cat, tag: tag.trim() || null }),
     });
-    setCat(''); setText('');
+    setCat(''); setText(''); setTag('');
     setPosting(false);
     showToast('Idea posted! 🎉');
     load();
@@ -121,9 +123,15 @@ export default function Dashboard() {
 
   const isAdmin = me === 'Amrit';
   const names = ['All', ...Array.from(new Set(ideas.map(i => i.member_name))).sort()];
+
+  // tags only from ideas in the selected category
+  const tagsInCategory = filter === 'All' ? [] :
+    ['All', ...Array.from(new Set(ideas.filter(i => i.category === filter && i.tag).map(i => i.tag as string))).sort()];
+
   const shown = ideas
     .filter(i => filter === 'All' || i.category === filter)
     .filter(i => filterName === 'All' || i.member_name === filterName)
+    .filter(i => filter === 'All' || filterTag === 'All' || i.tag === filterTag)
     .sort((a, b) => {
       if (sortBy === 'date-desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       if (sortBy === 'date-asc')  return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -141,7 +149,10 @@ export default function Dashboard() {
     <div>
       {/* Top bar */}
       <div style={s.topbar}>
-        <img src="/logo-white.png" alt="Tridharaa" style={{ height: '36px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <img src="/logo-white.png" alt="Tridharaa" style={{ height: '34px' }} />
+          <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 700, opacity: 0.9 }}>Planning Hub</span>
+        </div>
         <button style={s.userPill} onClick={() => setModal({ type: 'confirm', msg: 'Log out?', okLabel: 'Log out', onOk: () => { localStorage.removeItem('tp_user'); router.push('/'); } })}>
           👤 {me}
         </button>
@@ -155,6 +166,14 @@ export default function Dashboard() {
             <option value="">Select category…</option>
             {CATS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          <input
+            type="text"
+            value={tag}
+            onChange={e => setTag(e.target.value)}
+            placeholder="Tag / subcategory (optional) e.g. Dhak, Lighting, Prasad…"
+            maxLength={40}
+            style={{ ...s.select, marginBottom: '0.6rem' }}
+          />
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
@@ -174,13 +193,29 @@ export default function Dashboard() {
           {['All', ...CATS].map(c => (
             <button
               key={c}
-              onClick={() => setFilter(c)}
+              onClick={() => { setFilter(c); setFilterTag('All'); }}
               style={{ ...s.tab, ...(filter === c ? s.tabActive : {}) }}
             >
               {c === 'All' ? 'All' : c.split(' ').slice(1).join(' ')}
             </button>
           ))}
         </div>
+
+        {/* Tag filter — only shown when category selected and tags exist */}
+        {filter !== 'All' && tagsInCategory.length > 1 && (
+          <div style={s.tagFilterRow}>
+            <span style={s.tagFilterLabel}>Filter by tag:</span>
+            {tagsInCategory.map(t => (
+              <button
+                key={t}
+                onClick={() => setFilterTag(t)}
+                style={{ ...s.tagChip, ...(filterTag === t ? s.tagChipActive : {}) }}
+              >
+                {t === 'All' ? 'All tags' : `# ${t}`}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Name filter + sort row */}
         <div style={s.filterRow}>
@@ -205,6 +240,7 @@ export default function Dashboard() {
               <div style={s.ideaHead}>
                 <span style={s.who}>{idea.member_name}</span>
                 <span style={s.catTag}>{idea.category}</span>
+                {idea.tag && <span style={s.tagPill}># {idea.tag}</span>}
                 <span style={s.when}>{dt(idea.created_at)}</span>
               </div>
               <div style={s.ideaBody}>{idea.idea_text}</div>
@@ -312,6 +348,11 @@ const styles = {
   ideaHead:    { display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.45rem', flexWrap: 'wrap' as const },
   who:         { fontSize: '0.78rem', fontWeight: 800, color: '#5C1148' },
   catTag:      { fontSize: '0.68rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '100px', background: '#E8EDCB', color: '#2C2C2C' },
+  tagPill:     { fontSize: '0.66rem', fontWeight: 700, padding: '0.15rem 0.55rem', borderRadius: '100px', background: '#F0E8F5', color: '#7B3FA0' },
+  tagFilterRow:{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' as const, marginBottom: '0.75rem', padding: '0.55rem 0.75rem', background: '#F9F4FC', borderRadius: '10px', border: '1px solid #E8D8F5' },
+  tagFilterLabel:{ fontSize: '0.7rem', fontWeight: 800, color: '#7B3FA0', marginRight: '0.2rem' },
+  tagChip:     { padding: '0.25rem 0.7rem', border: '1.5px solid #C9A8E0', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 700, background: '#fff', color: '#7B3FA0', cursor: 'pointer' },
+  tagChipActive:{ background: '#7B3FA0', borderColor: '#7B3FA0', color: '#fff' },
   when:        { fontSize: '0.68rem', color: '#777', marginLeft: 'auto' },
   ideaBody:    { fontSize: '0.9rem', lineHeight: 1.55, color: '#2C2C2C' },
   ideaFoot:    { display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.65rem' },
