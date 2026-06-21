@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tridharaa-planner",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "4500", "/Users/nb-mac32/Documents/tridharaa-planner"],
+      "port": 4500
+    }
+  ]
+}
