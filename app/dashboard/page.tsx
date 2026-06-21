@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 type ModalState =
-  | { type: 'confirm'; msg: string; onOk: () => void }
-  | { type: 'prompt';  msg: string; onOk: (val: string) => void }
+  | { type: 'confirm'; msg: string; okLabel?: string; onOk: () => void }
+  | { type: 'prompt';  msg: string; okLabel?: string; onOk: (val: string) => void }
   | null;
 
 type Status   = 'open' | 'approved' | 'task';
@@ -142,7 +142,7 @@ export default function Dashboard() {
       {/* Top bar */}
       <div style={s.topbar}>
         <span style={s.brand}>🪷 <span style={{ color: '#F0A832' }}>Tridharaa</span> Planning Hub</span>
-        <button style={s.userPill} onClick={() => setModal({ type: 'confirm', msg: 'Change your name?', onOk: () => { localStorage.removeItem('tp_user'); router.push('/'); } })}>
+        <button style={s.userPill} onClick={() => setModal({ type: 'confirm', msg: 'Log out?', okLabel: 'Log out', onOk: () => { localStorage.removeItem('tp_user'); router.push('/'); } })}>
           👤 {me}
         </button>
       </div>
@@ -274,7 +274,7 @@ export default function Dashboard() {
                 setModal(null);
                 modal.onOk(val);
               }}>
-                {modal.type === 'confirm' ? 'Delete' : 'Assign'}
+                {modal.okLabel ?? (modal.type === 'confirm' ? 'Delete' : 'Assign')}
               </button>
             </div>
           </div>
